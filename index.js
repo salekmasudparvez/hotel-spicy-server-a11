@@ -27,9 +27,16 @@ async function run() {
     // await client.connect();
     // Send a ping to confirm a successful connection
     const reviewCollection = client.db("hotelSpicyDB").collection("review");
+    const roomsCollection = client.db("hotelSpicyDB").collection("rooms");
 
     app.get('/review', async(req,res)=>{
         const cursor = reviewCollection.find();
+        const result = await cursor.toArray();
+        res.send(result)
+
+    })
+    app.get('/rooms', async(req,res)=>{
+        const cursor = roomsCollection.find();
         const result = await cursor.toArray();
         res.send(result)
 
