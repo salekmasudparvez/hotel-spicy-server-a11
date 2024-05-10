@@ -28,6 +28,7 @@ async function run() {
     // Send a ping to confirm a successful connection
     const reviewCollection = client.db("hotelSpicyDB").collection("review");
     const roomsCollection = client.db("hotelSpicyDB").collection("rooms");
+    const feturesCollection = client.db("hotelSpicyDB").collection("fetures");
 
     app.get('/review', async(req,res)=>{
         const cursor = reviewCollection.find();
@@ -37,6 +38,12 @@ async function run() {
     })
     app.get('/rooms', async(req,res)=>{
         const cursor = roomsCollection.find();
+        const result = await cursor.toArray();
+        res.send(result)
+
+    })
+    app.get('/fetures', async(req,res)=>{
+        const cursor = feturesCollection.find();
         const result = await cursor.toArray();
         res.send(result)
 
