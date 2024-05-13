@@ -41,7 +41,7 @@ async function run() {
       .collection("mybooking");
 
     app.get("/review", async (req, res) => {
-      const cursor = reviewCollection.find();
+      const cursor = reviewCollection.find().sort( { postDate: -1 } );
       const result = await cursor.toArray();
       res.send(result);
     });
