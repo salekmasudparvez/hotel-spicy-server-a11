@@ -96,27 +96,33 @@ async function run() {
       const result = await mybookingsCollection.find(queryRooms).toArray();
       res.send(result);
     });
-    app.delete("/mybooking/:id", async(req, res) => {
+   
+    app.delete("/mybooking/:id", async (req, res) => {
       const id = req.params.id;
-      const query = { bookingID: new ObjectId(id) };
-
-      const myBookingQuery = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $set: { Availability: true },
-      };
-
-      const updateBidCount = await roomsCollection.updateOne(
-        myBookingQuery,
-        updateDoc
-      );
+      console.log(id);
+      const query = { _id: new ObjectId(id)}
       const result = await mybookingsCollection.deleteOne(query);
+      
       res.send(result);
     });
+
+    app.patch('/mybooking', async (req, res) => {
+      const id = req.query.ReadID;
+      const newDate = req.body;
+      const query = { _id: new ObjectId(id) }
+      console.log(id,'--------'),newDate;
+      const updateDoc = {
+        $set: {date:newDate},
+      }
+      const result = await mybookingsCollection.updateOne(query, updateDoc)
+      res.send(result)
+    })
 
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
+    
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
