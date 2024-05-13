@@ -89,6 +89,40 @@ async function run() {
 
       res.send(result);
     });
+    //post review 
+    app.post('/myreview', async(req,res)=>{
+      const review = req.body;
+      const result = await reviewCollection.insertOne(review);
+      res.send(result)
+    })
+
+    //update roomavailablity true when delete
+    app.patch('/updateTrue/:id', async(req,res)=>{
+      const id = req.params.id
+      const updateDoc = {
+        $set: { Availability: true },
+      };
+      const availableQuery = { _id: new ObjectId(id) };
+      const updateBidCount = await roomsCollection.updateOne(
+        availableQuery,
+        updateDoc
+      );
+    })
+    app.patch('/updateDate/:id', async(req,res)=>{
+      const id = req.params.id;
+      const updateDate= req.body;
+      console.log(updateDate.updatedDate);
+     
+      const updateDoc = {
+        $set: { bookingDate:updateDate.updatedDate},
+      };
+      const availableQuery = { _id: new ObjectId(id) };
+      const updateDateResult = await mybookingsCollection.updateOne(
+        availableQuery,
+        updateDoc
+      );
+      res.send(updateDateResult)
+    })
 
     app.get("/mybooking", async (req, res) => {
       const userEmail = req.query.email;
