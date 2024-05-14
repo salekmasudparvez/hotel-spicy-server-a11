@@ -11,7 +11,8 @@ const corsOptions = {
   origin: [
     "http://localhost:5173",
     "http://localhost:5174",
-    "https://solosphere.web.app",
+    "https://hotel-server-kappa.vercel.app",
+    "https://hotel-spicy.netlify.app",
   ],
   credentials: true,
   optionSuccessStatus: 200,
@@ -63,11 +64,10 @@ async function run() {
         const token = jwt.sign(email, process.env.ACCESS_TOKEN_SECRET, {
           expiresIn: '365d',
         })
-        res
-          .cookie('token', token, {
+        res.cookie('token', token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
           })
           .send({ success: true })
       })
@@ -88,6 +88,12 @@ async function run() {
       const result = await cursor.toArray();
       res.send(result);
     });
+   
+    app.get("/fetures", async (req, res) => {
+      const cursor = feturesCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
     app.get("/roomsCount", async (req, res) => {
       const count = await roomsCollection.estimatedDocumentCount();
       res.send({ count });
@@ -96,8 +102,10 @@ async function run() {
       console.log(req.query); //hit server apli with data will show here result
       const page = parseInt(req.query.page);
       const size = parseInt(req.query.size);
+      const sortNum =parseInt(req.query.sort)
       const result = await roomsCollection
         .find()
+        .sort({PricePerNight:sortNum})
         .skip(page * size)
         .limit(size)
         .toArray();
@@ -119,17 +127,6 @@ async function run() {
       const BookID = currentBooking.bookingID;
       console.log(BookID);
       const result = await mybookingsCollection.insertOne(currentBooking);
-      // update part
-      const updateDoc = {
-        $set: { Availability: false },
-      };
-      const myBookingQuery = { _id: new ObjectId(BookID) };
-      const updateBidCount = await roomsCollection.updateOne(
-        myBookingQuery,
-        updateDoc
-      );
-      console.log(updateBidCount);
-
       res.send(result);
     });
     //post review 
@@ -149,6 +146,31 @@ async function run() {
       const updateBidCount = await roomsCollection.updateOne(
         availableQuery,
         updateDoc
+      );
+    })
+    //---->
+    app.patch('/rooms/:id', async(req,res)=>{
+      const id = req.params.id
+      const updateAvailable = {
+        $set: { Availability: false }
+      };
+      
+      const availableQuery = { _id: new ObjectId(id) };
+      const updateOne = await roomsCollection.updateOne(
+        availableQuery,
+        updateAvailable
+      );
+    })
+    app.patch('/rooms/updateReview/:id', async(req,res)=>{
+      const id = req.params.id
+      const updateCountReview = req.body;
+      const updateCount = {
+        $set: { reviewCount: updateCountReview.updateReviewCount }
+      };
+      const availableQuery = { _id: new ObjectId(id) };
+      const updateOne = await roomsCollection.updateOne(
+        availableQuery,
+        updateCount
       );
     })
     app.patch('/updateDate/:id', async(req,res)=>{
@@ -176,7 +198,6 @@ async function run() {
    
     app.delete("/mybooking/:id", async (req, res) => {
       const id = req.params.id;
-      console.log(id);
       const query = { _id: new ObjectId(id)}
       const result = await mybookingsCollection.deleteOne(query);
       
@@ -187,7 +208,6 @@ async function run() {
       const id = req.query.ReadID;
       const newDate = req.body;
       const query = { _id: new ObjectId(id) }
-      console.log(id,'--------'),newDate;
       const updateDoc = {
         $set: {date:newDate},
       }
