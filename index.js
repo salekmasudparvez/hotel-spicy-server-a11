@@ -90,7 +90,7 @@ async function run() {
       const result = await cursor.toArray();
       res.send(result);
     });
-
+   
     app.get("/fetures", async (req, res) => {
       const cursor = feturesCollection.find();
       const result = await cursor.toArray();
@@ -118,15 +118,7 @@ async function run() {
         .toArray();
       res.send(result);
     });
-    // app.get("/roomsfilter", async(req, res) => {
-    // const low = parseInt(req.query.lprice);
-    // const high = parseInt(req.query.hprice);
-    //   // const low = req.query.lprice;
-    //   // const high = req.query.hprice;
-    //   console.log(low,high);
-    //   const result = await roomsCollection.find().toArray()
-    //   res.send(result);
-    // });
+   
     app.get("/rooms/:id", async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
@@ -141,7 +133,6 @@ async function run() {
     app.post("/mybooking", async (req, res) => {
       const currentBooking = req.body;
       const BookID = currentBooking.bookingID;
-      console.log(BookID);
       const result = await mybookingsCollection.insertOne(currentBooking);
       res.send(result);
     });
@@ -177,22 +168,10 @@ async function run() {
         updateAvailable
       );
     });
-    app.patch("/rooms/updateReview/:id", async (req, res) => {
-      const id = req.params.id;
-      const updateCountReview = req.body;
-      const updateCount = {
-        $set: { reviewCount: updateCountReview.updateReviewCount },
-      };
-      const availableQuery = { _id: new ObjectId(id) };
-      const updateOne = await roomsCollection.updateOne(
-        availableQuery,
-        updateCount
-      );
-    });
+    
     app.patch("/updateDate/:id", async (req, res) => {
       const id = req.params.id;
       const updateDate = req.body;
-      console.log(updateDate.updatedDate);
 
       const updateDoc = {
         $set: { bookingDate: updateDate.updatedDate },
@@ -206,7 +185,8 @@ async function run() {
     });
 
     app.get("/mybooking", async (req, res) => {
-      const userEmail = req.query.email;
+
+      const userEmail = req.query.email;           
       const queryRooms = { clientEmail: userEmail };
       const result = await mybookingsCollection.find(queryRooms).toArray();
       res.send(result);
