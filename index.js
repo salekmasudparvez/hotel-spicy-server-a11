@@ -1,16 +1,18 @@
 const express = require("express");
 const cors = require("cors");
-require("dotenv").config();
+require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
+const { default: axios } = require("axios");
 
 const corsOptions = {
   origin: [
     "http://localhost:5173",
     "http://localhost:5174",
+    "http://localhost:5000",
     "https://hotel-server-kappa.vercel.app",
     "https://hotel-spicy.netlify.app",
   ],
@@ -19,6 +21,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(express.urlencoded());
 app.use(cookieParser());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.2gfcy7h.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -57,6 +60,8 @@ async function run() {
     const reviewCollection = client.db("hotelSpicyDB").collection("review");
     const roomsCollection = client.db("hotelSpicyDB").collection("rooms");
     const feturesCollection = client.db("hotelSpicyDB").collection("fetures");
+    const paymentCollection = client.db("hotelSpicyDB").collection("payment");
+    const usersCollection = client.db("hotelSpicyDB").collection("users");
     const mybookingsCollection = client
       .db("hotelSpicyDB")
       .collection("mybooking");
@@ -84,9 +89,136 @@ async function run() {
         })
         .send({ success: true });
     });
+    //users
+    app.post('/singup',async(req,res) => {
+      const getObj = req.body;
+      const query = {email: getObj.email}
+      const isExists = await usersCollection.findOne(query);
+      if(!getObj.email || !getObj.photoURL){
+        return res.status(400).send({message:'Please provide valid data'})
+      }
+      if(isExists){
+        return res.status(400).send({message:'Email already exists'})
+      }
+      const data = await usersCollection.insertOne(getObj);
+      if(data){
+         res.status(200).send({message:'User created successfully'})
+      }
+    })
+    app.get('/role/:email',async (req, res)=>{
+      const getEmail =req.params.email;
+      const query = {email: getEmail};
+      const user = await usersCollection.findOne(query)
+      res.send({
+        role:user?.role
+      })
+    })
+    app.get('/user/:email',async (req, res)=>{
+      const getEmail =req.params.email;
+      const query = {email: getEmail};
+      const user = await usersCollection.findOne(query)
+      res.send(user)
+    })
+    app.get("/allusers", async (req, res) => {
+      const getSearch = req.query.search;
+      const getEmail = req.query.email;
+      let query = {};
+      if (getSearch) {
+        query = { name: getSearch };
+      }
+      if (getEmail) {
+        query = { email: getEmail };
+      }
+
+      const allUsers = await usersCollection.find(query).toArray();
+      res.send(allUsers);
+    });
+    app.patch("/allusers", async (req, res) => {
+      const obj = req.body;
+      const query = {
+        email: obj.email,
+      };
+      const updateDoc = {
+        $set: { role: obj.updateRole },
+      };
+      console.log(obj, "line65");
+      const allUsers = await usersCollection.updateOne(query, updateDoc);
+      res.send(allUsers);
+    });
+    //payment
+    app.post('/create-payment',async(req,res)=>{
+     const getObj = req.body;
+     const transId = new ObjectId().toString();
+     const initiatePayInfo={
+      store_id:process.env.VITE_STORE_ID,
+      store_passwd:process.env.VITE_STORE_PASS,
+      total_amount:getObj.amount,
+      currency:'BDT',
+      tran_id:transId,
+      success_url:'http://localhost:5000/success-payment',
+      fail_url:'http://yoursite.com/fail.php&',
+      cancel_url:'http://yoursite.com/cancel.php&',
+      cus_name:getObj.customerName,
+      cus_email:getObj.customerEmail,
+      cus_add1:'Dhaka',
+      cus_add2:'Dhaka',
+      cus_city:'Dhaka',
+      cus_state:'Dhaka',
+      cus_postcode:1000,
+      cus_country:'Bangladesh',
+      cus_phone:'01711111111',
+      cus_fax:'01711111111',
+      shipping_method:"No",
+      product_name:getObj.title,
+      product_category:'Room',
+      product_profile:'general',
+      multi_card_name:'mastercard',
+      value_a:'ref001_A',
+      value_b:'ref002_B',
+      value_c:'ref003_C',
+      value_d:'ref004_D'
+     }
+     const response = await axios({
+      method:"POST",
+      url:"https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
+      data:initiatePayInfo,
+      headers:{
+       "Content-Type":'application/x-www-form-urlencoded'
+      }
+     }
+     );
+     const data = {
+       roomName:getObj.title,
+       fee:getObj.amount,
+       status:'pending',
+       transitionId:transId,
+       Customer_Name:getObj.customerName,
+       CustomerEmail:getObj.customerEmail,
+
+     }
+   const sendData = await paymentCollection.insertOne(data)
+     if(sendData){
+      res.send({paymentUrl:response.data.GatewayPageURL});
+     }
+
+    })
+    app.post('/success-payment',async(req,res)=>{
+       const successData = req.body;
+       if(successData.status!== "VALID"){
+        return res.status(400).send({ error: "Invalid status" });
+       }
+       const data = await paymentCollection.updateOne({transitionId:successData.tran_id},{$set:{status:"success"}});
+       res.send(data);
+       
+    })
 
     app.get("/review", async (req, res) => {
-      const cursor = reviewCollection.find().sort({ postDate: -1 });
+      const getId = req.query.id;
+      let query={}
+      if(getId){
+        query={BookingIdForReview:getId}
+      }
+      const cursor = reviewCollection.find(query).sort({ postDate: -1 });
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -135,6 +267,29 @@ async function run() {
       const BookID = currentBooking.bookingID;
       const result = await mybookingsCollection.insertOne(currentBooking);
       res.send(result);
+    });
+    //host get all rooms
+    app.get("/allrooms", async (req, res) => {
+      const getID = req.query.id;
+      //console.log(typeof getID, getID);
+      let query = {};
+      if (getID === "0") {
+        query = {
+          status: "pending",
+        };
+      }
+      if (getID === "1") {
+        query = {
+          status: "rejected",
+        };
+      }
+      if (getID === "2") {
+        query = {
+          status: "approved",
+        };
+      }
+      const Allrooms = await roomsCollection.find(query).toArray();
+      res.send(Allrooms);
     });
     //post review
     app.post("/myreview", async (req, res) => {
