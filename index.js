@@ -148,14 +148,15 @@ async function run() {
     //payment
     app.post('/create-payment',async(req,res)=>{
      const getObj = req.body;
-     const transId = new ObjectId().toString();
+     //const transId = new ObjectId().toString();
      const initiatePayInfo={
       store_id:process.env.VITE_STORE_ID,
       store_passwd:process.env.VITE_STORE_PASS,
       total_amount:getObj.amount,
       currency:'BDT',
-      tran_id:transId,
-      success_url:'http://localhost:5000/success-payment',
+      tran_id:getObj.bookingID,
+      bookingID:getObj.bookingID,
+      success_url:'https://hotel-server-kappa.vercel.app/success-payment',
       fail_url:'http://yoursite.com/fail.php&',
       cancel_url:'http://yoursite.com/cancel.php&',
       cus_name:getObj.customerName,
@@ -176,7 +177,8 @@ async function run() {
       value_a:'ref001_A',
       value_b:'ref002_B',
       value_c:'ref003_C',
-      value_d:'ref004_D'
+      value_d:'ref004_D',
+
      }
      const response = await axios({
       method:"POST",
@@ -191,9 +193,13 @@ async function run() {
        roomName:getObj.title,
        fee:getObj.amount,
        status:'pending',
-       transitionId:transId,
+       transitionId:getObj.bookingID,
        Customer_Name:getObj.customerName,
        CustomerEmail:getObj.customerEmail,
+       bookingID:getObj.bookingID,
+       imageUrl:getObj.imageUrl,
+       bookingDate:getObj.bookingDate,
+       bookingStatus:'confirm'
 
      }
    const sendData = await paymentCollection.insertOne(data)
@@ -207,9 +213,39 @@ async function run() {
        if(successData.status!== "VALID"){
         return res.status(400).send({ error: "Invalid status" });
        }
+       console.log(successData,'//////////////////')
+       const UdateRooms = await roomsCollection.updateOne({_id: new ObjectId(successData.tran_id)},{$set:{Availability:false,bankTans_id:successData.bank_tran_id}})
        const data = await paymentCollection.updateOne({transitionId:successData.tran_id},{$set:{status:"success"}});
-       res.send(data);
+
+       res.redirect(`http://localhost:5173/rooms/${successData.tran_id}`)
        
+    })
+    //payments get for guest
+    app.get('/payment/:email',async(req,res)=>{
+      const getEmail =req.params.email;
+      const query = {CustomerEmail:getEmail,bookingStatus:"confirm"};
+      const getData = await paymentCollection.find(query).toArray();
+      res.send(getData)
+    })
+    //update date from guest
+    app.patch('/paymentDate',async(req,res)=>{
+      const obj = req.body;
+      const query = {bookingID: obj.bookingID};
+      const updateDoc = {
+        $set: { bookingDate: obj.updatedDate },
+      };
+      const updateData = await paymentCollection.updateOne(query, updateDoc);
+      res.send(updateData);
+    })
+    //cancel booking 
+    app.patch('/cancelBooking',async(req,res) => {
+      const obj = req.body;
+      const query = {bookingID: obj.bookingID};
+      const updateDoc = {
+        $set: { bookingStatus: "cancelled" },
+      };
+      const updateData = await paymentCollection.updateOne(query, updateDoc);
+      res.send(updateData);
     })
 
     app.get("/review", async (req, res) => {
@@ -238,9 +274,9 @@ async function run() {
       const page = parseInt(req.query.page);
       const size = parseInt(req.query.size);
       const sortNum = parseInt(req.query.sort);
-      let query = {};
+      let query = {status:"approved"};
       if (low && high) {
-        query = { PricePerNight: { $gte: low, $lte: high } };
+        query = {...query, PricePerNight: { $gte: low, $lte: high } };
       }
       const result = await roomsCollection
         .find(query)
@@ -257,6 +293,39 @@ async function run() {
       const singleRoom = await roomsCollection.findOne(filter);
       res.send(singleRoom);
     });
+    //admin get rooms
+    app.get("/adminrooms/:email", async (req, res) => {
+      const status = req.params.status;
+      const email = req.params.email;
+      const filter = { adminEmail: email };
+      const singleRoom = await roomsCollection.findOne(filter);
+      res.send(singleRoom);
+    });
+    //admin add room
+    app.post("/addroom", async (req, res) => {
+      const room = req.body;
+      const result = await roomsCollection.insertOne(room);
+      res.send(result);
+    });
+    //admin update room
+    app.patch("/updateRoom", async (req, res) => {
+      const room = req.body;
+      const filter = { _id: new ObjectId(room._id) };
+      const updateDoc = {
+        $set: {
+          title: room.title,
+          description: room.description,
+          pricePerNight: room.pricePerNight,
+          location: room.location,
+          amenities: room.amenities,
+          status: room.status,
+          imageUrl: room.imageUrl,
+        },
+      };
+      const result = await roomsCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+    //admin delete room
     app.get("/fetures", async (req, res) => {
       const cursor = feturesCollection.find();
       const result = await cursor.toArray();
@@ -304,11 +373,12 @@ async function run() {
       const updateDoc = {
         $set: { Availability: true },
       };
-      const availableQuery = { _id: new ObjectId(id) };
-      const updateBidCount = await roomsCollection.updateOne(
-        availableQuery,
+      const query = { _id: new ObjectId(id) };
+      const updateStatus = await roomsCollection.updateOne(
+        query,
         updateDoc
       );
+      res.send(updateStatus)
     });
     //---->
     app.patch("/rooms/:id", async (req, res) => {
